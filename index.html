@@ -27,7 +27,7 @@
     .timer { display:block; margin-top:6px; font-weight:bold; text-align:center; }
   </style>
 
-  <!-- 1) Definē onOpenCvReady pirms OpenCV ielādes -->
+  <!-- 1) Define onOpenCvReady BEFORE loading OpenCV.js -->
   <script>
     function onOpenCvReady() {
       cv['onRuntimeInitialized'] = () => {
@@ -36,7 +36,7 @@
       };
     }
   </script>
-  <!-- 2) Ielādē OpenCV.js no CDN -->
+  <!-- 2) Load OpenCV.js from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/opencv@4.5.5/build/opencv.js"
           onload="onOpenCvReady()"></script>
 </head>
@@ -57,19 +57,19 @@
 
   <script>
   async function initSimulator() {
-    // Pieprasa kameru piekļuvi
+    // 1) Ask for camera permission
     try {
       const grant = await navigator.mediaDevices.getUserMedia({ video: true });
       grant.getTracks().forEach(t => t.stop());
     } catch (e) {
-      alert('Lūdzu atļauj kamerai piekļuvi, lai simulatoru lietotu.');
-      return;
+      return alert('Lūdzu atļauj kamerai piekļuvi.');
     }
 
-    // Saraksts ar videoierīcēm
+    // 2) List all video inputs
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === 'videoinput');
 
+    // 3) Grab UI elements
     const cntSel    = document.getElementById('shooterCount');
     const btnStart  = document.getElementById('btnStart');
     const btnStop   = document.getElementById('btnStop');
@@ -78,6 +78,7 @@
 
     let streams = [], timers = [], sessions = [];
 
+    // 4) Build the grid of video/canvas/UI
     function makeGrid(n) {
       container.innerHTML = '';
       sessions = Array(n).fill().map(() => []);
@@ -100,6 +101,7 @@
         container.appendChild(div);
       }
 
+      // Populate each cam selector & attach controls
       container.querySelectorAll('.shooter').forEach((div, i) => {
         const sel = div.querySelector('.camSel');
         cams.forEach((c, idx) => {
@@ -111,10 +113,12 @@
         sel.onchange = () => startStream(i, sel.value);
         div.querySelector('.rot').onclick = () => toggleRotate(i);
         div.querySelector('.mir').onclick = () => toggleMirror(i);
-        startStream(i, cams[0].deviceId);
+        // start default on first cam
+        startStream(i, cams[0]?.deviceId);
       });
     }
 
+    // 5) Start/stop individual camera streams
     async function startStream(i, deviceId) {
       const video = container.children[i].querySelector('video');
       if (streams[i]) streams[i].getTracks().forEach(t => t.stop());
@@ -122,10 +126,11 @@
         streams[i] = await navigator.mediaDevices.getUserMedia({ video: { deviceId } });
         video.srcObject = streams[i];
       } catch (e) {
-        console.error('Kļūda piekļūstot kamerai:', e);
+        console.error('Kamera nepiekrita:', e);
       }
     }
 
+    // 6) Rotate / mirror helpers
     function toggleRotate(i) {
       const v = container.children[i].querySelector('video');
       v.style.transform = v.style.transform.includes('rotate(90deg)')
@@ -139,16 +144,18 @@
         : v.style.transform + ' scaleX(-1)';
     }
 
+    // 7) Utility: format seconds
     function fmt(sec) {
-      const m = Math.floor(sec / 60), s = sec % 60;
-      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+      const m = Math.floor(sec/60), s = sec%60;
+      return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     }
 
+    // 8) Clear, Stop, Start routines
     function clearAll() {
       sessions.forEach((_, i) => {
         sessions[i] = [];
         const c = container.children[i].querySelector('canvas');
-        c.getContext('2d').clearRect(0, 0, c.width, c.height);
+        c.getContext('2d').clearRect(0,0,c.width,c.height);
       });
     }
     function stopAll() {
@@ -159,7 +166,7 @@
     function startAll() {
       btnStart.disabled = true;
       btnStop.disabled  = false;
-      btnClear.disabled = false;
+      btnClear.disabled= false;
       clearAll();
       sessions = sessions.map(() => []);
       container.querySelectorAll('.shooter').forEach((div, i) => {
@@ -171,6 +178,7 @@
       });
     }
 
+    // 9) Laser‐point detection via OpenCV.js
     function processFrame(i) {
       if (btnStop.disabled) return;
       const div = container.children[i];
@@ -181,6 +189,7 @@
       }
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
+
       const cap = new cv.VideoCapture(video);
       const src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
       cap.read(src);
@@ -196,18 +205,18 @@
                    new cv.Mat(hsv.rows,hsv.cols,hsv.type(),hi2), m2);
       cv.add(m1, m2, mask);
 
-      const ctrs = new cv.MatVector(), hier = new cv.Mat();
-      cv.findContours(mask, ctrs, hier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const ctrs = new cv.MatVector(), hierarchy = new cv.Mat();
+      cv.findContours(mask, ctrs, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-      for (let j = 0; j < ctrs.size(); j++) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      for (let j=0; j<ctrs.size(); j++){
         const cnt = ctrs.get(j), mo = cv.moments(cnt);
         if (mo.m00 > 1000) {
           const cx = mo.m10/mo.m00, cy = mo.m01/mo.m00;
-          sessions[i].push({ x:cx, y:cy });
+          sessions[i].push({x:cx,y:cy});
           ctx.strokeStyle='lime'; ctx.lineWidth=3;
-          ctx.beginPath(); ctx.arc(cx, cy, 15, 0, 2*Math.PI); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx,cy,15,0,2*Math.PI); ctx.stroke();
           ctx.fillStyle='lime'; ctx.font='20px sans-serif';
           ctx.fillText(sessions[i].length, cx+8, cy-8);
         }
@@ -215,15 +224,16 @@
       }
 
       src.delete(); hsv.delete(); m1.delete(); m2.delete(); mask.delete();
-      ctrs.delete(); hier.delete();
+      ctrs.delete(); hierarchy.delete();
+
       requestAnimationFrame(() => processFrame(i));
     }
 
-    // Poga‐listeners + pirmreizēja grid
-    document.getElementById('shooterCount').onchange = () => { makeGrid(+cntSel.value); clearAll(); };
-    document.getElementById('btnStart').onclick = startAll;
-    document.getElementById('btnStop').onclick  = stopAll;
-    document.getElementById('btnClear').onclick = clearAll;
+    // 10) Wire up controls & initialize grid
+    cntSel.onchange = () => { makeGrid(+cntSel.value); clearAll(); };
+    btnStart.onclick = startAll;
+    btnStop.onclick  = stopAll;
+    btnClear.onclick = clearAll;
     makeGrid(+cntSel.value);
   }
   </script>
