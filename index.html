@@ -27,7 +27,7 @@
     .timer { display:block; margin-top:6px; font-weight:bold; text-align:center; }
   </style>
 
-  <!-- Definē onOpenCvReady pirms OpenCV.js ielādes -->
+  <!-- 1) Definē onOpenCvReady pirms OpenCV ielādes -->
   <script>
     function onOpenCvReady() {
       cv['onRuntimeInitialized'] = () => {
@@ -36,7 +36,7 @@
       };
     }
   </script>
-  <!-- Ielādē OpenCV.js no oficiālā CDN -->
+  <!-- 2) Ielādē OpenCV.js no CDN -->
   <script src="https://cdn.jsdelivr.net/npm/opencv@4.5.5/build/opencv.js"
           onload="onOpenCvReady()"></script>
 </head>
@@ -66,15 +66,15 @@
       return;
     }
 
-    // Iegūst video ievades ierīces
+    // Saraksts ar videoierīcēm
     const devices = await navigator.mediaDevices.enumerateDevices();
     const cams = devices.filter(d => d.kind === 'videoinput');
 
-    const cntSel   = document.getElementById('shooterCount');
-    const btnStart = document.getElementById('btnStart');
-    const btnStop  = document.getElementById('btnStop');
-    const btnClear = document.getElementById('btnClear');
-    const container= document.getElementById('shooters');
+    const cntSel    = document.getElementById('shooterCount');
+    const btnStart  = document.getElementById('btnStart');
+    const btnStop   = document.getElementById('btnStop');
+    const btnClear  = document.getElementById('btnClear');
+    const container = document.getElementById('shooters');
 
     let streams = [], timers = [], sessions = [];
 
@@ -132,7 +132,6 @@
         ? v.style.transform.replace('rotate(90deg)', '')
         : v.style.transform + ' rotate(90deg)';
     }
-
     function toggleMirror(i) {
       const v = container.children[i].querySelector('video');
       v.style.transform = v.style.transform.includes('scaleX(-1)')
@@ -142,27 +141,25 @@
 
     function fmt(sec) {
       const m = Math.floor(sec / 60), s = sec % 60;
-      return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
     }
 
     function clearAll() {
       sessions.forEach((_, i) => {
         sessions[i] = [];
         const c = container.children[i].querySelector('canvas');
-        c.getContext('2d').clearRect(0,0,c.width,c.height);
+        c.getContext('2d').clearRect(0, 0, c.width, c.height);
       });
     }
-
     function stopAll() {
       btnStart.disabled = false;
       btnStop.disabled  = true;
       timers.forEach(t => clearInterval(t));
     }
-
     function startAll() {
       btnStart.disabled = true;
       btnStop.disabled  = false;
-      btnClear.disabled= false;
+      btnClear.disabled = false;
       clearAll();
       sessions = sessions.map(() => []);
       container.querySelectorAll('.shooter').forEach((div, i) => {
@@ -191,26 +188,26 @@
       let hsv = new cv.Mat(), m1 = new cv.Mat(), m2 = new cv.Mat(), mask = new cv.Mat();
       cv.cvtColor(src, hsv, cv.COLOR_RGBA2RGB);
       cv.cvtColor(hsv, hsv, cv.COLOR_RGB2HSV);
-      const low1=[0,150,150,0], hi1=[10,255,255,255],
-            low2=[160,150,150,0], hi2=[180,255,255,255];
+      const low1 = [0,150,150,0], hi1 = [10,255,255,255],
+            low2 = [160,150,150,0], hi2 = [180,255,255,255];
       cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),low1),
-                     new cv.Mat(hsv.rows,hsv.cols,hsv.type(),hi1), m1);
+                   new cv.Mat(hsv.rows,hsv.cols,hsv.type(),hi1), m1);
       cv.inRange(hsv, new cv.Mat(hsv.rows,hsv.cols,hsv.type(),low2),
-                     new cv.Mat(hsv.rows,hsv.cols,hsv.type(),hi2), m2);
+                   new cv.Mat(hsv.rows,hsv.cols,hsv.type(),hi2), m2);
       cv.add(m1, m2, mask);
 
       const ctrs = new cv.MatVector(), hier = new cv.Mat();
       cv.findContours(mask, ctrs, hier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
       for (let j = 0; j < ctrs.size(); j++) {
         const cnt = ctrs.get(j), mo = cv.moments(cnt);
         if (mo.m00 > 1000) {
           const cx = mo.m10/mo.m00, cy = mo.m01/mo.m00;
           sessions[i].push({ x:cx, y:cy });
           ctx.strokeStyle='lime'; ctx.lineWidth=3;
-          ctx.beginPath(); ctx.arc(cx,cy,15,0,2*Math.PI); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx, cy, 15, 0, 2*Math.PI); ctx.stroke();
           ctx.fillStyle='lime'; ctx.font='20px sans-serif';
           ctx.fillText(sessions[i].length, cx+8, cy-8);
         }
@@ -222,14 +219,14 @@
       requestAnimationFrame(() => processFrame(i));
     }
 
-    // Piesaista pogas un inicializē
-    cntSel.onchange = () => { makeGrid(+cntSel.value); clearAll(); };
-    btnStart.onclick = startAll;
-    btnStop.onclick  = stopAll;
-    btnClear.onclick= clearAll;
-
+    // Poga‐listeners + pirmreizēja grid
+    document.getElementById('shooterCount').onchange = () => { makeGrid(+cntSel.value); clearAll(); };
+    document.getElementById('btnStart').onclick = startAll;
+    document.getElementById('btnStop').onclick  = stopAll;
+    document.getElementById('btnClear').onclick = clearAll;
     makeGrid(+cntSel.value);
   }
   </script>
+
 </body>
 </html>
